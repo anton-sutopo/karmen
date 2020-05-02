@@ -48,6 +48,9 @@ struct widget {
 	enum widget_type type;
 	Window xwindow;
 	int mapped;
+	int depth;
+	Visual *visual;
+	Colormap colormap;
 	struct dim dim;
 	void (*event)(struct widget *, XEvent *);
 	void (*prepare_repaint)(struct widget *);

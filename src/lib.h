@@ -24,6 +24,7 @@
  */
 
 #include <X11/Xlib.h>
+#include <X11/Xft/Xft.h>
 
 #define MAX(a, b)	((a) > (b) ? (a) : (b))
 #define MIN(a, b)	((a) < (b) ? (a) : (b))
@@ -34,15 +35,6 @@
 
 #define LARGER(i)	((i) + 128)
 
-typedef struct {
-	unsigned char *data;
-	int width;
-	int height;
-	Pixmap pixmap;
-} IMAGE;
-
-#define DEFINE_IMAGE(name, xbm) \
-	IMAGE name = { xbm##_bits, xbm##_width, xbm##_height, None }
 
 struct color {
 	unsigned long bright2;
@@ -72,11 +64,9 @@ void grabbutton(Display *display, unsigned button, unsigned modifiers,
 void ungrabbutton(Display *display, unsigned button, unsigned modifiers,
     Window grab_window);
 
-void putimage(Display *display, Drawable d, GC gc, IMAGE *image,
-              int x, int y);
-void drawraised(Drawable, GC, struct color *, int, int, int, int);
-void drawlowered(Drawable, GC, struct color *, int, int, int, int);
-void drawdepressed(Drawable, GC, struct color *, int, int, int, int);
+void unmapDraw(XftDraw *xftdraw, XftColor color, int x, int y, int width, int height);
+void closeDraw(XftDraw *xftdraw, XftColor color, int x, int y, int width, int height);
+
 int stringwidth(const char *);
 char *stringfit(char *str, int width);
 

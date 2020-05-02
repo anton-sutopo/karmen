@@ -64,85 +64,32 @@ void debug(const char *fmt, ...)
 #endif
 }
 
-void putimage(Display *display, Drawable d, GC gc, IMAGE *image,
-    int x, int y)
-{
-	if (image->pixmap == None)
-		image->pixmap = XCreateBitmapFromData(display, d,
-		    (char *)image->data, image->width, image->height);
-	XCopyPlane(display, image->pixmap, d, gc,
-	    0, 0, image->width, image->height, x, y, 1);
+void unmapDraw(XftDraw *xftdraw, XftColor color, int x, int y, int width, int height) {
+	XGlyphInfo ext;
+        XftTextExtentsUtf8(display, xftfont, "<", 1, &ext);
+        int y1 = y + height-(height - ext.height)/2;
+        int x1 = x + (width - ext.width)/2;
+	XftDrawString8(xftdraw, &color,xftfont,x1,y1, (XftChar8 *)"<",1);
 }
 
-void drawraised(Drawable d, GC gc, struct color *color,
-                int x, int y, int w, int h)
-{
-	XSetForeground(display, gc, color->bright2);
-	XDrawLine(display, d, gc, x, y, x+w-3, y);
-	XDrawLine(display, d, gc, x, y+1, x, y+h-3);
-
-	XSetForeground(display, gc, BlackPixel(display, screen));
-	XDrawLine(display, d, gc, x+w-1, y, x+w-1, y+h-1);
-	XDrawLine(display, d, gc, x, y+h-1, x+w-2, y+h-1);
-
-	XSetForeground(display, gc, color->shadow2);
-	XDrawLine(display, d, gc, x+w-2, y+1, x+w-2, y+h-2);
-	XDrawLine(display, d, gc, x+1, y+h-2, x+w-3, y+h-2);
-
-	XSetForeground(display, gc, color->normal);
-	XDrawPoint(display, d, gc, x+w-2, y);
-	XDrawPoint(display, d, gc, x, y+h-2);
+void closeDraw(XftDraw *xftdraw, XftColor color, int x, int y, int width, int height) {
+	XGlyphInfo ext;
+	XftTextExtentsUtf8(display, xftfont, "#", 1, &ext);
+	int y1 = y + height - (height - ext.height)/2;
+	int x1 = x + (width - ext.width)/2;
+	XftDrawString8(xftdraw, &color,xftfont,x1,y1, (XftChar8 *) "#",1);
 }
 
-void drawlowered(Drawable d, GC gc, struct color *color,
-                 int x, int y, int w, int h)
-{
-	XSetForeground(display, gc, color->shadow2);
-	XDrawLine(display, d, gc, x, y, x+w-2, y);
-	XDrawLine(display, d, gc, x, y+1, x, y+h-2);
 
-	XSetForeground(display, gc, BlackPixel(display, screen));
-	XDrawLine(display, d, gc, x+1, y+1, x+w-2, y+1);
-	XDrawLine(display, d, gc, x+1, y+2, x+1, y+h-2);
-
-	XSetForeground(display, gc, color->bright2);
-	XDrawLine(display, d, gc, x+w-1, y+1, x+w-1, y+h-1);
-	XDrawLine(display, d, gc, x+1, y+h-1, x+w-2, y+h-1);
-
-	XSetForeground(display, gc, color->normal);
-	XDrawPoint(display, d, gc, x+w-1, y);
-	XDrawPoint(display, d, gc, x, x+h-1);
-}
-
-void drawdepressed(Drawable d, GC gc, struct color *color,
-                   int x, int y, int w, int h)
-{
-	XSetForeground(display, gc, BlackPixel(display, screen));
-	XDrawLine(display, d, gc, x, y, x+w-1, y);
-	XDrawLine(display, d, gc, x, y+1, x, y+h-1);
-
-	XSetForeground(display, gc, color->bright1);
-	XDrawLine(display, d, gc, x+1, y+1, x+w-2, y+1);
-	XDrawLine(display, d, gc, x+1, y+2, x+1, y+h-2);
-
-	XSetForeground(display, gc, color->shadow2);
-	XDrawLine(display, d, gc, x+w-1, y+2, x+w-1, y+h-1);
-	XDrawLine(display, d, gc, x+2, y+h-1, x+w-2, y+h-1);
-
-	XSetForeground(display, gc, color->normal);
-	XDrawPoint(display, d, gc, x+w-1, y+1);
-	XDrawPoint(display, d, gc, x+1, x+h-1);
-}
 
 int stringwidth(const char *str)
 {
-        XCharStruct ch;
+         XGlyphInfo ch;
         int direction;
         int ascent;
         int descent;
 
-        XTextExtents(font, str, strlen(str), &direction,
-            &ascent, &descent, &ch);
+        XftTextExtents8(display, xftfont, (XftChar8 *)(str), strlen(str), &ch);
         return ch.width;
 }
 

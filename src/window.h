@@ -112,5 +112,6 @@ void unmap_window(struct window *);
 void user_unmap_window(struct window *);
 void restack_all_windows(void);
 void get_client_stack(Window **, int *);
+char *decodetextproperty(XTextProperty *p);
 
 #endif /* !defined(WINDOW_H) */

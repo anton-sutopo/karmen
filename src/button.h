@@ -24,7 +24,7 @@
  */
 
 #include <X11/Xlib.h>
-
+#include <X11/Xft/Xft.h>
 #include "lib.h"
 #include "widget.h"
 
@@ -32,15 +32,17 @@ struct window;
 
 struct button { struct widget widget;
 	struct window *window;
-	struct color *fg;
-	struct color *bg;
 	Pixmap pixmap;
 	GC gc;
-	IMAGE *image;
+	XftColor xftFg;
+	XftColor xftBg;
+	XftColor xftBgBright;
+	XftDraw *xftdraw;
 	int acting;
 	int depressed;
 	int hover;
 	void (*handler)(struct window *);
+	void (*drawing)(XftDraw *xftdraw, XftColor xftcolor, int x, int y, int width, int height);
 };
 
 struct button *create_button(struct window *, int, int, int, int);
@@ -48,6 +50,5 @@ void destroy_button(struct button *);
 void move_button(struct button *, int, int);
 void repaint_button(struct button *);
 void set_button_handler(struct button *, void (*)(struct window *));
-void set_button_image(struct button *, IMAGE *);
-
+void set_draw_handler (struct button *bp, void (*drawing)(XftDraw *xftdraw, XftColor xftcolor, int x, int y, int width, int height));
 #endif /* !defined(BUTTON_H) */

@@ -28,7 +28,7 @@ karmen_SOURCES = \
 dist_man_MANS = karmen.1
 
 karmen_CPPFLAGS =
-karmen_CFLAGS = $(X_CFLAGS)
+karmen_CFLAGS = $(X_CFLAGS) -I/usr/include/uuid -I/usr/include/freetype2 -I/usr/include/libpng16 
 karmen_LDFLAGS = $(X_LIBS)
 
 if CONFIG_EWMH
@@ -36,4 +36,4 @@ karmen_SOURCES+=ewmh.c
 karmen_CPPFLAGS+=-DCONFIG_EWMH=1
 endif
 
-karmen_LDADD = $(X_PRE_LIBS) -lX11 $(X_EXTRA_LIBS)
+karmen_LDADD = $(X_PRE_LIBS) -lX11 $(X_EXTRA_LIBS) -lfreetype -lXft

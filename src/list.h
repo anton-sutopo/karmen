@@ -79,6 +79,7 @@
  */
 
 #include <stdio.h>
+#include <stdint.h>
 
 /* The exported LIST type. */
 typedef struct listnode LIST;
@@ -139,7 +140,7 @@ struct listnode {
 #define LIST_MEMBER(node)	((node)->ln_next != (node))
 
 #define LIST_ITEM(node, type, memb) \
-	((type *)((char *)(node) - (unsigned)&(((type *)0)->memb)))
+	((type *)((char *)(node) - (intptr_t)&(((type *)0)->memb)))
 
 #define LIST_FOREACH(node, list) \
 	for ((node) = (list)->ln_next; \

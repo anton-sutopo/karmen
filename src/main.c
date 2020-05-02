@@ -2,7 +2,7 @@
  * Program initialization and event loop
  *
  * Copyright 2006-2007 Johan Veenhuizen
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
  * to deal in the Software without restriction, including without limitation
@@ -31,11 +31,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 
-#include <X11/keysym.h>
+#include <X11/XKBlib.h>
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
+#include <X11/Xft/Xft.h>
+#include <sys/timerfd.h>
 
 #include "global.h"
 #include "lib.h"
@@ -43,10 +46,8 @@
 #include "menu.h"
 #include "window.h"
 
-#include "delete.xbm"
-#include "unmap.xbm"
 
-#define BORDERWIDTH_MIN  3
+#define BORDERWIDTH_MIN  0
 
 Display *display;
 int screen;
@@ -54,26 +55,26 @@ Window root;
 
 struct menu *winmenu;
 
-XFontStruct *font;
 
-int border_width = 4;
+XftFont *xftfont;
+int border_width = 1;
 int button_size;
 int title_pad;
 
-struct color color_title_active_fg;
-struct color color_title_active_bg;
-struct color color_title_inactive_fg;
-struct color color_title_inactive_bg;
-struct color color_menu_fg;
-struct color color_menu_bg;
-struct color color_menu_selection_fg;
-struct color color_menu_selection_bg;
+XftColor bgColorTitleActive;
+XftColor bgColorTitleActiveBright;
+XftColor fgColorTitleActive;
+XftColor bgColorTitleInactive;
+XftColor bgColorTitleInactiveBright;
+XftColor fgColorTitleInactive;
+XftColor bgColorMenu;
+XftColor fgColorMenu;
+XftColor bgColorMenuSelection;
+XftColor fgColorMenuSelection;
 
-DEFINE_IMAGE(delete_image, delete);
-DEFINE_IMAGE(unmap_image, unmap);
+
 
 static char *displayname = NULL;
-
 static const char *ftnames[] = {
 	/* This will be overwritten by user supplied font name */
 	DEFAULT_FONT,
@@ -84,6 +85,7 @@ static const char *ftnames[] = {
 	/* This is the one that exists */
 	"fixed"
 };
+
 
 static XrmOptionDescRec options[] = {
 	/*
@@ -116,14 +118,16 @@ static XrmOptionDescRec options[] = {
 #define GTK_BLUE	"rgb:4b/69/83"
 #define FRESH_BLUE	"rgb:c0/d0/e0"
 
-static char *colorname_title_active_fg = BLACK;
-static char *colorname_title_active_bg = GTK_LIGHTGRAY;
-static char *colorname_title_inactive_fg = BLACK;
-static char *colorname_title_inactive_bg = GTK_DARKGRAY;
+static char *colorname_title_active_fg = WHITE;
+static char *colorname_title_active_bg = GTK_BLUE;
+static char *colorname_title_active_bg_bright = GTK_DARKGRAY;
+static char *colorname_title_inactive_fg = GTK_BLUE;
+static char *colorname_title_inactive_bg = WHITE;
+static char *colorname_title_inactive_bg_bright = FRESH_BLUE;
 static char *colorname_menu_fg = BLACK;
 static char *colorname_menu_bg = WHITE;
 static char *colorname_menu_selection_fg = BLACK;
-static char *colorname_menu_selection_bg = GTK_LIGHTGRAY;
+static char *colorname_menu_selection_bg = WHITE;
 
 /* The signals that we care about */
 static const int sigv[] = { SIGHUP, SIGINT, SIGTERM };
@@ -133,6 +137,8 @@ static int sigpipe[2] = { -1, -1 };
 
 /* If greater than zero, don't report X errors */
 static int errlev = 0;
+
+static int timerfd;
 
 static int xerr_report(Display *dpy, XErrorEvent *ep)
 {
@@ -145,6 +151,7 @@ static int xerr_report(Display *dpy, XErrorEvent *ep)
 	} else {
 		XGetErrorText(dpy, ep->error_code, buf, sizeof buf);
 		error("%s", buf);
+		//error("%s",ep.request_code);
 		return 0;
 	}
 }
@@ -194,7 +201,6 @@ static void die(int signo)
 	destroy_menu(winmenu);
 	widget_fini();
 
-	XFreeFont(display, font);
 
 	XSetInputFocus(display, PointerRoot, RevertToPointerRoot, CurrentTime);
 	XCloseDisplay(display);
@@ -226,7 +232,7 @@ static int readsig(int fd)
 
 static void waitevent(void)
 {
-	struct pollfd pfd[2];
+	struct pollfd pfd[3];
 	int res;
 
 	pfd[0].fd = ConnectionNumber(display);
@@ -234,10 +240,32 @@ static void waitevent(void)
 
 	pfd[1].fd = sigpipe[0];
 	pfd[1].events = POLLIN;
+	pfd[2].fd = timerfd;
+	pfd[2].revents = 0;
+	pfd[2].events = POLLIN;
+
 
 	for (;;) {
 		do {
-			res = poll(pfd, 2, -1);
+			res = poll(pfd, 3, -1);
+			if(res > 0) {
+			  if(pfd[2].revents == POLLIN) {
+				int timersElapsed = 0;
+            			(void) read(pfd[2].fd, &timersElapsed, 8);
+            			//error("timers elapsed: %d\n", timersElapsed);
+				if(active !=NULL) {
+					if(active->widget.xwindow != NULL) {
+					  XEvent exppp;
+                                	  memset(&exppp,0, sizeof(exppp));
+                                	  exppp.type = Expose;
+                                	  exppp.xexpose.window = active->widget.xwindow;
+                                	  XSendEvent(display,active->widget.xwindow, False, ExposureMask, &exppp);
+                                	  XFlush(display);
+					}
+				}
+			  	res = -1;
+			  }
+			}
 		} while (res == -1 && (errno == EINTR || errno == EAGAIN));
 
 		if (res == -1) {
@@ -253,11 +281,21 @@ static void waitevent(void)
 				die(sig);
 			} else if (pfd[0].revents == POLLIN) {
 				/* Event received */
+				if(timerfd >=0) {
+				    //timerfd_destroy(timerfd);
+				}
 				return;
 			} else if (pfd[0].revents == POLLERR) {
 				/* X connection broken */
 				error("X connection broken");
 				die(0);
+			} else if(pfd[2].revents == POLLIN) {
+				/*XEvent exppp;
+				memset(&exppp,0, sizeof(exppp));
+				exppp.type = Expose;
+				exppp.xexpose.window = active->widget.xwindow;
+				XSendEvent(display,active->widget.xwindow, False, ExposureMask, &exppp);
+				XFlush(display);*/
 			}
 		}
 	}
@@ -288,32 +326,19 @@ static void scalecolor(XColor *rp, const XColor *cp, double d)
 	rp->blue = scalepixel(cp->blue, d);
 }
 
-static void mkcolor(struct color *color, const char *name)
-{
+
+
+static void mkxftcolor(XftColor *color, const char *name) {
 	XColor tc, sc;
-
 	XAllocNamedColor(display, DefaultColormap(display, screen),
-	    name, &sc, &tc);
+            name, &sc, &tc);
+    color->pixel = sc.pixel;
+    color->color.red = tc.red;
+    color->color.green = tc.green;
+    color->color.blue = tc.blue;
+    color->color.alpha = 0xffff;
 
-	color->normal = sc.pixel;
-
-	scalecolor(&sc, &tc, -.07);
-	XAllocColor(display, DefaultColormap(display, screen), &sc);
-	color->shadow1 = sc.pixel;
-
-	scalecolor(&sc, &tc, -.33);
-	XAllocColor(display, DefaultColormap(display, screen), &sc);
-	color->shadow2 = sc.pixel;
-
-	scalecolor(&sc, &tc, +.07);
-	XAllocColor(display, DefaultColormap(display, screen), &sc);
-	color->bright1 = sc.pixel;
-
-	scalecolor(&sc, &tc, +.25);
-	XAllocColor(display, DefaultColormap(display, screen), &sc);
-	color->bright2 = sc.pixel;
 }
-
 static void usage(FILE *fp)
 {
 	fprintf(fp,
@@ -384,16 +409,16 @@ static void loadres(XrmDatabase db)
 static void loadfont(void)
 {
 	int i;
-
-	for (i = 0; i < NELEM(ftnames); i++) {
-		font = XLoadQueryFont(display, ftnames[i]);
-		if (font != NULL)
+	for(i = 0; i < NELEM(ftnames);i++) {
+		xftfont = XftFontOpenName(display, screen, ftnames[i]);
+		if(xftfont != NULL)
 			return;
-		error("can't load font \"%s\"", ftnames[i]);
+		error("can't load font \"%s\"",ftnames[i]);
 	}
 	error("fatal: no more fonts");
 	exit(1);
 }
+
 
 static void init(int *argcp, char *argv[])
 {
@@ -459,13 +484,13 @@ static void init(int *argcp, char *argv[])
 	grabkey(display, XKeysymToKeycode(display, XK_Tab),
 	    ShiftMask | Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
 
-	/* grabkey(display, XKeysymToKeycode(display, XK_Return), */
-	/*     Mod1Mask, root, True, GrabModeAsync, GrabModeAsync); */
+	grabkey(display, XKeysymToKeycode(display, XK_Return),
+	    Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
 
 	grabkey(display, XKeysymToKeycode(display, XK_space),
 	    Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
 
-	grabkey(display, XKeysymToKeycode(display, XK_Escape),
+	grabkey(display, XKeysymToKeycode(display, XK_F4),
 	    Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
 
 	grabkey(display, XKeysymToKeycode(display, XK_BackSpace),
@@ -475,27 +500,49 @@ static void init(int *argcp, char *argv[])
 
 	loadfont();
 
-	title_pad = 1 + MAX(1, (font->ascent + font->descent) / 10);
-	button_size = font->ascent + font->descent + 2 * title_pad;
+	title_pad = 1 + MAX(1, (xftfont->ascent + xftfont->descent) / 10);
+	button_size = xftfont->ascent + xftfont->descent + 2 * title_pad;
 	if ((button_size & 1) == 1)
 		button_size++;
 	button_size++;
 
-	mkcolor(&color_title_active_fg, colorname_title_active_fg);
-	mkcolor(&color_title_active_bg, colorname_title_active_bg);
-	mkcolor(&color_title_inactive_fg, colorname_title_inactive_fg);
-	mkcolor(&color_title_inactive_bg, colorname_title_inactive_bg);
-	mkcolor(&color_menu_fg, colorname_menu_fg);
-	mkcolor(&color_menu_bg, colorname_menu_bg);
-	mkcolor(&color_menu_selection_fg, colorname_menu_selection_fg);
-	mkcolor(&color_menu_selection_bg, colorname_menu_selection_bg);
+	mkxftcolor(&bgColorTitleActive,colorname_title_active_bg);
+	mkxftcolor(&bgColorTitleActiveBright, colorname_title_active_bg_bright);
+	mkxftcolor(&fgColorTitleActive,colorname_title_active_fg);
+	mkxftcolor(&bgColorTitleInactive,colorname_title_inactive_bg);
+	mkxftcolor(&fgColorTitleInactive,colorname_title_inactive_fg);
+	mkxftcolor(&bgColorTitleInactiveBright, colorname_title_inactive_bg_bright);
+	mkxftcolor(&bgColorMenu, colorname_menu_bg);
+	mkxftcolor(&fgColorMenu, colorname_menu_fg);
+	mkxftcolor(&bgColorMenuSelection, colorname_menu_selection_bg);
+	mkxftcolor(&fgColorMenuSelection, colorname_menu_selection_fg);
+	struct itimerspec timerValue;
+	timerfd = timerfd_create(CLOCK_REALTIME, 0);
+    	if (timerfd < 0) {
+        	error("failed to create timer fd\n");
+        	//exit(1);
+    	}
+    	bzero(&timerValue, sizeof(timerValue));
+    	timerValue.it_value.tv_sec = 1;
+    	timerValue.it_value.tv_nsec = 0;
+    	timerValue.it_interval.tv_sec = 1;
+    	timerValue.it_interval.tv_nsec = 0;
+	if(timerfd >= 0) {
+		if (timerfd_settime(timerfd, 0, &timerValue, NULL) < 0) {
+        		error("could not start timer\n");
+        	//exit(1);
+    		}
+	}
+
 }
 
 static void handlekey(XKeyEvent *ep)
 {
 	static int cycling = 0;
 
-	switch (XKeycodeToKeysym(display, ep->keycode, 0)) {
+	//switch (XKeycodeToKeysym(display, ep->keycode, 0)) {
+        switch (XkbKeycodeToKeysym( display, ep->keycode, 
+                                0, ep->state & ShiftMask ? 1 : 0)) {
 	case XK_Meta_L:
 	case XK_Meta_R:
 	case XK_Alt_L:
@@ -543,8 +590,7 @@ static void handlekey(XKeyEvent *ep)
 			REPAINT(winmenu);
 		}
 		break;
-  // maximize with space key
-	case XK_space:
+	case XK_Return:
 		if (ep->type == KeyPress && active != NULL)
 			maximize_window(active);
 		break;
@@ -556,15 +602,17 @@ static void handlekey(XKeyEvent *ep)
 	/* 	if (ep->type == KeyPress && active != NULL) */
 	/* 		toggle_window_ontop(active); */
 	/* 	break; */
-	case XK_Escape:
-		if (cycling) {
+	case XK_BackSpace:
+		if (ep->type == KeyPress && active != NULL) 
+                     toggle_window_ontop(active); 
+		/*if (cycling) {
 			cycling = 0;
 			hide_menu(winmenu);
 			XUngrabKeyboard(display, CurrentTime);
 		} else if (ep->type == KeyPress && active != NULL)
-			user_unmap_window(active);
+			user_unmap_window(active);*/
 		break;
-	case XK_BackSpace:
+	case XK_F4:
 		if (ep->type == KeyPress && active != NULL) {
 			if (ep->state & ShiftMask) {
 				clerr();
@@ -632,9 +680,30 @@ static Window xeventwindow(XEvent *ep)
 		return ep->xany.window;
 	}
 }
+static int wait_fd(int fd, double seconds)
+{
+    struct timeval tv;
+    fd_set in_fds;
+    FD_ZERO(&in_fds);
+    FD_SET(fd, &in_fds);
+    tv.tv_sec = trunc(seconds);
+    tv.tv_usec = (seconds - trunc(seconds))*1000000;
+    return select(fd+1, &in_fds, 0, 0, &tv);
+}
+
+int XNextEventTimeout(Display *display, XEvent *event, double seconds)
+{
+    if (XPending(display) || wait_fd(ConnectionNumber(display),seconds)) {
+        XNextEvent(display, event);
+        return 0;
+    } else {
+        return 1;
+    }
+}
 
 static void mainloop(void)
 {
+
 	XEvent e;
 	Window xwindow;
 	struct widget *widget;
@@ -645,6 +714,7 @@ static void mainloop(void)
 		nextevent(&e);
 		xwindow = xeventwindow(&e);
 		widget = find_widget(xwindow, WIDGET_ANY);
+
 		if (widget != NULL) {
 			if (widget->event != NULL)
 				widget->event(widget, &e);

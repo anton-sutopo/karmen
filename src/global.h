@@ -24,34 +24,35 @@
  */
 
 #include <X11/Xlib.h>
+#include <X11/Xft/Xft.h>
 
 #include "lib.h"
 
-#define DEFAULT_FONT	"lucidasans-14"
+#define DEFAULT_FONT	"sans:pixelsize=12"
 
 extern Display *display;
 extern int screen;
 extern Window root;
-extern XFontStruct *font;
+extern XftFont *xftfont;
+extern XftColor bgColorTitleActive;
+extern XftColor bgColorTitleActiveBright;
+extern XftColor fgColorTitleActive;
+extern XftColor bgColorTitleInactive;
+extern XftColor bgColorTitleInactiveBright;
+extern XftColor fgColorTitleInactive;
+extern XftColor bgColorMenu;
+extern XftColor fgColorMenu;
+extern XftColor bgColorMenuSelection;
+extern XftColor fgColorMenuSelection;
 
 extern int border_width;
 extern int button_size;
 extern int title_pad;
 
-extern IMAGE delete_image;
-extern IMAGE unmap_image;
+
 
 extern struct window *active;
 
 extern struct menu *winmenu;
-
-extern struct color color_title_active_fg;
-extern struct color color_title_active_bg;
-extern struct color color_title_inactive_fg;
-extern struct color color_title_inactive_bg;
-extern struct color color_menu_fg;
-extern struct color color_menu_bg;
-extern struct color color_menu_selection_fg;
-extern struct color color_menu_selection_bg;
 
 #endif /* !defined(GLOBAL_H) */

@@ -49,6 +49,7 @@ void create_widget(struct widget *widget, enum widget_type type,
     Window xparent, unsigned class, int x, int y, int width, int height)
 {
 	XSetWindowAttributes attr;
+	XVisualInfo vinfo;
 
 	widget->type = type;
 	widget->dim.x = x;
@@ -58,12 +59,33 @@ void create_widget(struct widget *widget, enum widget_type type,
 	widget->event = NULL;
 	widget->mapped = False;
 	attr.override_redirect = True;
-	widget->xwindow = XCreateWindow(display, xparent,
-	    x, y, width, height, 0,
-	    CopyFromParent,
-	    class,
-	    CopyFromParent,
-	    CWOverrideRedirect, &attr);
+//	widget->xwindow = XCreateSimpleWindow(display, xparent, x, y, width, height, 1,
+//                           BlackPixel(display, screen), WhitePixel(display, screen));
+	if (!XMatchVisualInfo(display, XDefaultScreen(display), 32, TrueColor, &vinfo))
+        {
+		widget->xwindow = XCreateWindow(display, xparent,
+	    		x, y, width, height, 0,
+	    		CopyFromParent,
+	    		class,
+	    		CopyFromParent,
+	    		CWOverrideRedirect, &attr);
+		widget->depth = DefaultDepth(display,screen);
+		widget->visual = DefaultVisual(display,screen);
+		widget->colormap = DefaultColormap(display,screen);
+	} else {
+		Visual *visual;
+		int depth;
+		visual = vinfo.visual;
+  		depth = vinfo.depth;
+		attr.colormap = XCreateColormap(display, xparent, visual, AllocNone);
+  		attr.background_pixel = 0;
+  		attr.border_pixel = 0;
+		widget->xwindow = XCreateWindow(display, xparent, x, y, width, height, 0, depth, class,
+                visual, CWOverrideRedirect | CWColormap | CWBorderPixel | CWBackPixel , &attr);
+		widget->depth = depth;
+		widget->visual = visual;
+		widget->colormap = attr.colormap;
+	}
 	XSaveContext(display, widget->xwindow, wmcontext, (XPointer)widget);
 	widget->prepare_repaint = NULL;
 	widget->repaint = NULL;

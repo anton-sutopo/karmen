@@ -1,6 +1,6 @@
 /*
  * Copyright 2006-2007 Johan Veenhuizen
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
  * to deal in the Software without restriction, including without limitation
@@ -31,9 +31,10 @@
 #include "global.h"
 #include "list.h"
 #include "menu.h"
+#include "window.h"
 
-#define ITEMPAD		MAX(1, (font->ascent + font->descent) / 4)
-#define ITEMHEIGHT	(font->ascent + font->descent + 2 * ITEMPAD)
+#define ITEMPAD		MAX(1, (xftfont->ascent + xftfont->descent) / 4)
+#define ITEMHEIGHT	(xftfont->ascent + xftfont->descent + 2 * ITEMPAD)
 #define MAXWIDTH	(DisplayWidth(display, screen) / 4)
 
 static Cursor cursor = None;
@@ -83,8 +84,37 @@ static void prepare_repaint(struct widget *widget)
 {
 	struct menu *menu = (struct menu *)widget;
 
-	XSetWindowBackground(display, WIDGET_XWINDOW(menu),
-	    color_menu_bg.normal);
+//	XSetWindowBackground(display, WIDGET_XWINDOW(menu),
+//	    color_menu_bg.normal);
+}
+char* fetch_icon_name_only(struct window *win)
+{
+	char *name;
+	char *iconname;
+	XTextProperty p;
+	clerr();
+	XGetIconName(display, win->client, &iconname);
+	if (iconname == NULL || strlen(iconname) == 0) {
+		if (iconname != NULL) {
+			XFree(iconname);
+			iconname = NULL;
+		}
+		XFetchName(display, win->client, &iconname);
+	}
+	sterr();
+
+	if (iconname == NULL || strlen(iconname) == 0) {
+    	   XTextProperty p;
+    	   if (0 != XGetWMName(display, win->client, &p)) {
+      		name = decodetextproperty(&p);
+      		if (p.value != NULL)
+        		XFree(p.value);
+    	   }
+       } else {
+         name = iconname;
+       }
+
+  return name;
 }
 
 static void repaint(struct widget *widget)
@@ -92,48 +122,31 @@ static void repaint(struct widget *widget)
 	struct menu *menu = (struct menu *)widget;
 	struct menuitem *ip;
 	LIST *lp;
+	char *name;
 	int i;
 
 	/* clear */
-	XSetForeground(display, menu->gc, color_menu_fg.normal);
-	XFillRectangle(display, menu->pixmap, menu->gc,
-	    0, 0, WIDGET_WIDTH(menu), WIDGET_HEIGHT(menu));
-	XSetForeground(display, menu->gc, color_menu_bg.normal);
-	XFillRectangle(display, menu->pixmap, menu->gc,
-	    1, 1, WIDGET_WIDTH(menu) - 2, WIDGET_HEIGHT(menu) - 2);
+	XftDrawRect(menu->xftdraw, &bgColorMenu, 0, 0, WIDGET_WIDTH(menu), WIDGET_HEIGHT(menu));
 
 	i = 0;
 	LIST_FOREACH(lp, &menu->itemlist) {
 		ip = LIST_ITEM(lp, struct menuitem, itemlink);
+		name = ip->name;
+		//name = fetch_icon_name_only(ip->arg);
+		//stringfit(name,MAXWIDTH);
 		if (i == menu->current) {
-			XSetForeground(display, menu->gc,
-			    color_menu_selection_fg.normal);
-			XDrawLine(display, menu->pixmap, menu->gc,
-			    1,
-			    1 + ITEMPAD + i * ITEMHEIGHT,
-			    WIDGET_WIDTH(menu) - 2,
-			    1 + ITEMPAD + i * ITEMHEIGHT);
-			XDrawLine(display, menu->pixmap, menu->gc,
-			    1,
-			    1 + ITEMPAD + i * ITEMHEIGHT + ITEMHEIGHT - 1,
-			    WIDGET_WIDTH(menu) - 2,
-			    1 + ITEMPAD + i * ITEMHEIGHT + ITEMHEIGHT - 1);
-
-			XSetForeground(display, menu->gc,
-			    color_menu_selection_fg.normal);
-			XFillRectangle(display, menu->pixmap, menu->gc,
-			    1, 1 + ITEMPAD + i * ITEMHEIGHT + 1,
-			    WIDGET_WIDTH(menu) - 2, ITEMHEIGHT - 2);
-
-			XSetForeground(display, menu->gc,
-			    color_menu_selection_bg.normal);
-		} else
-			XSetForeground(display, menu->gc,
-			    color_menu_fg.normal);
-		XDrawString(display, menu->pixmap, menu->gc,
-		    1 + ITEMHEIGHT,
-		    1 + ITEMPAD + i * ITEMHEIGHT + ITEMPAD + font->ascent,
-		    ip->name, strlen(ip->name));
+			XftDrawRect(menu->xftdraw, &fgColorMenuSelection, 0,  ITEMPAD+i * ITEMHEIGHT, WIDGET_WIDTH(menu) , WIDGET_HEIGHT(menu));
+			XftDrawString8(menu->xftdraw, &bgColorMenuSelection, xftfont,
+                        1 + ITEMPAD,
+                        1 + ITEMPAD +i * ITEMHEIGHT + ITEMPAD + xftfont->ascent,
+                        (XftChar8 *) name, strlen(name));
+		} else {
+			XftDrawRect(menu->xftdraw, &bgColorMenu, 0, ITEMPAD + i * ITEMHEIGHT, WIDGET_WIDTH(menu), WIDGET_HEIGHT(menu));
+			XftDrawString8(menu->xftdraw, &fgColorMenu, xftfont,
+			1 + ITEMPAD,
+			1 + ITEMPAD +i * ITEMHEIGHT + ITEMPAD + xftfont->ascent,
+			(XftChar8 *) name, strlen(name));
+		}
 		i++;
 	}
 
@@ -147,14 +160,28 @@ static void repaint(struct widget *widget)
 /*
  * Pop up and activate the menu at position (x, y).
  */
+
+void update_list(struct menu *menu) {
+	struct menuitem *ip;
+	LIST *lp;
+	LIST_FOREACH(lp, &menu->itemlist) {
+		char *name;		
+		ip = LIST_ITEM(lp, struct menuitem, itemlink);
+		name = fetch_icon_name_only(ip->arg);
+		ip->name = STRDUP(name);
+		stringfit(ip->name, MAXWIDTH);
+	}
+}
 void show_menu(struct menu *menu, int x, int y, int button)
 {
 	int dw = DisplayWidth(display, screen);
 	int dh = DisplayHeight(display, screen);
-
+	
 	if (LIST_EMPTY(&menu->itemlist))
 		return;
-
+	///
+	update_list(menu);
+	trim(menu);
 	if (x + WIDGET_WIDTH(menu) >= dw)
 		x = MAX(0, x - WIDGET_WIDTH(menu) + 1);
 
@@ -272,12 +299,12 @@ struct menu *create_menu(void)
 	mp->pixmap = XCreatePixmap(display, WIDGET_XWINDOW(mp),
 	    mp->pixmapwidth = WIDGET_WIDTH(mp),
 	    mp->pixmapheight = WIDGET_HEIGHT(mp),
-	    DefaultDepth(display, screen));
-
-	gcval.font = font->fid;
+	    mp->widget.depth);
+	mp->xftdraw = XftDrawCreate(display, mp->pixmap, mp->widget.visual, mp->widget.colormap);
+	//gcval.font = font->fid;
 	gcval.graphics_exposures = False;
 	mp->gc = XCreateGC(display, WIDGET_XWINDOW(mp),
-	    GCFont | GCGraphicsExposures, &gcval);
+	    GCGraphicsExposures, &gcval);
 
 	LIST_INIT(&mp->itemlist);
 	mp->nitems = 0;
@@ -305,6 +332,7 @@ void destroy_menu(struct menu *mp)
 		ip->menu = NULL;
 	}
 	XFreeGC(display, mp->gc);
+	XftDrawDestroy(mp->xftdraw);
 	XFreePixmap(display, mp->pixmap);
 	destroy_widget(&mp->widget);
 	FREE(mp);
@@ -343,7 +371,10 @@ static void trim(struct menu *mp)
 		    mp->pixmapwidth, mp->pixmapheight);
 		mp->pixmap = XCreatePixmap(display, WIDGET_XWINDOW(mp),
 		    mp->pixmapwidth, mp->pixmapheight,
-		    DefaultDepth(display, screen));
+		    mp->widget.depth);
+		 XftDrawDestroy(mp->xftdraw);
+		mp->xftdraw = XftDrawCreate(display, mp->pixmap, mp->widget.visual, mp->widget.colormap);
+
 	}
 }
 

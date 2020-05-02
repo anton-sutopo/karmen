@@ -31,9 +31,10 @@ struct window;
 
 struct title { struct widget widget;
 	struct window *window;
-	struct color *fg;
-	struct color *bg;
+	Window xwindow;
 	Pixmap pixmap;
+        XftColor xftBg;
+	XftColor xftFg;
 	int pixmapwidth;
 	int pixmapheight;
 	GC gc;
@@ -41,7 +42,9 @@ struct title { struct widget widget;
 	int yoff;
 	int moving;
 	Time lastclick;
+	XftDraw *xftdraw;
 };
+
 
 struct title *create_title(struct window *, int, int, int, int);
 void resize_title(struct title *, int, int);

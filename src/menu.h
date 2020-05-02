@@ -45,6 +45,7 @@ struct menu { struct widget widget;
 	int button;
 	int nitems;
 	LIST itemlist;
+	XftDraw *xftdraw;
 };
 
 struct menu *create_menu(void);

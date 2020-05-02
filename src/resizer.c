@@ -38,7 +38,7 @@
 #include "resizer.h"
 #include "window.h"
 
-#define PADDING		MAX(1, (font->ascent + font->descent) / 4)
+#define PADDING		MAX(1, (xftfont->ascent + xftfont->descent) / 4)
 
 static Cursor c1, c2, c3, c4, c5, c6, c7, c8;
 
@@ -49,6 +49,7 @@ struct sizewin { struct widget widget;
 
 static void update_sizewin(struct sizewin *sizewin, int xdim, int ydim)
 {
+/*	error("start update_sizewin");
 	static char buf[256];
 	struct widget *widget;
 	struct window *win;
@@ -58,8 +59,8 @@ static void update_sizewin(struct sizewin *sizewin, int xdim, int ydim)
 	win = sizewin->window;
 
 	sprintf(buf, "%dx%d", xdim, ydim);
-	width = 2 * (PADDING + font->descent) + stringwidth(buf);
-	height = 2 * PADDING + font->ascent + font->descent;
+	width = 2 * (PADDING + xftfont->descent) + stringwidth(buf);
+	height = 2 * PADDING + xftfont->ascent + xftfont->descent;
 	moveresize_widget(widget,
 	    WIDGET_X(win) + WIDGET_WIDTH(win) / 2 - (width + 2) / 2,
 	    WIDGET_Y(win) + border_width + button_size
@@ -69,13 +70,11 @@ static void update_sizewin(struct sizewin *sizewin, int xdim, int ydim)
 	if (!WIDGET_MAPPED(sizewin))
 		map_widget(&sizewin->widget);
 	XClearWindow(display, WIDGET_XWINDOW(sizewin));
-	XSetForeground(display, sizewin->gc, color_title_active_fg.normal);
-	XDrawString(display, WIDGET_XWINDOW(sizewin), sizewin->gc,
-	    PADDING + font->descent, PADDING + font->ascent,
-	    buf, strlen(buf));
-	drawraised(WIDGET_XWINDOW(sizewin), sizewin->gc,
-	    &color_title_active_bg,
-	    0, 0, WIDGET_WIDTH(sizewin), WIDGET_HEIGHT(sizewin));
+	//XSetForeground(display, sizewin->gc, color_title_active_fg.normal);
+	//XDrawString(display, WIDGET_XWINDOW(sizewin), sizewin->gc,
+	//    PADDING + xftfont->descent, PADDING + xftfont->ascent,
+	//    buf, strlen(buf));
+	error("end update_sizewin");*/
 }
 
 static struct sizewin *create_sizewin(struct window *win, int xdim, int ydim)
@@ -87,14 +86,15 @@ static struct sizewin *create_sizewin(struct window *win, int xdim, int ydim)
 	sizewin = MALLOC(sizeof *sizewin);
 	create_widget(&sizewin->widget, WIDGET_SIZEWIN,
 	    root, InputOutput, 0, 0, 1, 1);
-	XSetWindowBackground(display, WIDGET_XWINDOW(sizewin),
-	    color_title_active_bg.normal);
+
+	//XSetWindowBackground(display, WIDGET_XWINDOW(sizewin),
+	//    color_title_active_bg.normal);
 	attr.save_under = True;
 	XChangeWindowAttributes(display, WIDGET_XWINDOW(sizewin),
 	    CWSaveUnder, &attr);
-	gcval.font = font->fid;
+	gcval.graphics_exposures = False;
 	sizewin->gc = XCreateGC(display, WIDGET_XWINDOW(sizewin),
-	    GCFont, &gcval);
+	    GCGraphicsExposures, &gcval);
 	sizewin->window = win;
 	update_sizewin(sizewin, xdim, ydim);
 	return sizewin;
@@ -144,8 +144,8 @@ static void motion(struct resizer *resizer, XMotionEvent *ep)
 	int rwidth, rheight;
 	int xdim, ydim;
 
-	if (resizer->sizewin == NULL)
-		return;
+	//if (resizer->sizewin == NULL)
+	//	return;
 
 	switch (resizer->dir) {
 	case NORTHWEST:

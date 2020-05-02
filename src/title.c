@@ -26,9 +26,10 @@
 
 #include <assert.h>
 #include <string.h>
-
+#include <time.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xft/Xft.h>
 
 #include "global.h"
 #include "menu.h"
@@ -36,30 +37,29 @@
 #include "title.h"
 #include "window.h"
 
+
+
 static void prepare_repaint(struct widget *widget)
 {
 	struct title *title = (struct title *)widget;
 
 	if (window_family_is_active(title->window)) {
-		title->fg = &color_title_active_fg;
-		title->bg = &color_title_active_bg;
+		title->xftFg = fgColorTitleActive;
+		title->xftBg = bgColorTitleActive;
 	} else {
-		title->fg = &color_title_inactive_fg;
-		title->bg = &color_title_inactive_bg;
+		title->xftFg = fgColorTitleInactive;
+		title->xftBg = bgColorTitleInactive;
 	}
-
-	XSetWindowBackground(display, WIDGET_XWINDOW(title),
-	    title->bg->normal);
 }
 
 static void repaint(struct widget *widget)
 {
 	struct title *title = (struct title *)widget;
 	struct window *win = title->window;
-	struct color *fg = title->fg;
-	struct color *bg = title->bg;
+	XftColor xftBg = title->xftBg;
+	XftColor xftFg = title->xftFg;
 	char *buf = NULL;
-	int xpad = title_pad + 2 * font->descent; /* this looks reasonable */
+	int xpad = title_pad + 2 * xftfont->descent; /* this looks reasonable */
 	int ypad = MAX(3, 2 * title_pad);
 	int maxwidth = window_is_active(win) ?
 	    WIDGET_WIDTH(title) - 2 * xpad - ypad - WIDGET_WIDTH(title) / 5 :
@@ -67,52 +67,21 @@ static void repaint(struct widget *widget)
 	int off;
 
 	/* clear */
-	XSetForeground(display, title->gc, bg->normal);
-	XFillRectangle(display, title->pixmap, title->gc,
-	    0, 0, WIDGET_WIDTH(title), WIDGET_HEIGHT(title));
-
+	XftDrawRect(title->xftdraw, &xftBg, 0, 0, WIDGET_WIDTH(title), WIDGET_HEIGHT(title));
 	/* repaint */
-	if (window_is_ontop(title->window)) {
-		drawdepressed(title->pixmap, title->gc, bg,
-		    0, 0, WIDGET_WIDTH(title), WIDGET_HEIGHT(title));
-		off = 1;
-	} else {
-		drawraised(title->pixmap, title->gc, bg,
-		    0, 0, WIDGET_WIDTH(title), WIDGET_HEIGHT(title));
-		off = 0;
-	}
 
-	XSetForeground(display, title->gc, fg->normal);
 	if (win->name != NULL && strlen(win->name) > 0) {
 		buf = STRDUP(win->name);
 		stringfit(buf, maxwidth);
-		XDrawString(display, title->pixmap, title->gc,
-		    xpad + off,
-		    title_pad + font->ascent + off,
-		    buf, strlen(buf));
-	} 
-
-	if (window_is_active(win)) {
-		int x, y;
-		int m = 0;
-
-		x = (buf == NULL || strlen(buf) == 0) ?
-		    ypad : stringwidth(buf) + 2 * xpad;
-		x += off;
-		if (x < WIDGET_WIDTH(title) - 1 - ypad) {
-			for (y = ypad + off;
-			     y < WIDGET_HEIGHT(title) - 1 - ypad + off;
-			     y++) {
-        y =  m ? y + 1 : y;
-				XSetForeground(display, title->gc,
-				    m ? bg->shadow2 : bg->bright2);
-				XDrawLine(display, title->pixmap, title->gc,
-				    m + x, y,
-				    m + WIDGET_WIDTH(title)-2 - ypad + off, y);
-				m = !m;
-			}
-		}
+		XftDrawString8(title->xftdraw, &xftFg, xftfont, xpad, title_pad+xftfont->ascent, (XftChar8 *) (buf), strlen(buf));
 	}
+	if (window_family_is_active(title->window)) {
+		time_t t = time(NULL);
+    		struct tm *tm = localtime(&t);
+    		char s[64];
+    		assert(strftime(s, sizeof(s), "%c", tm));
+		XftDrawString8(title->xftdraw, &xftFg, xftfont, WIDGET_WIDTH(title) - button_size - stringwidth(s), title_pad+xftfont->ascent, (XftChar8 *) (s), strlen(s));
+	 }
 
 	/* display */
 	if (WIDGET_MAPPED(title))
@@ -133,7 +102,7 @@ static void titleevent(struct widget *widget, XEvent *ep)
 		if (ep->xbutton.button == Button1) {
 			if (title->lastclick > ep->xbutton.time - 250) {
 				maximize_window(title->window);
-			} else {
+			} else if(!title->window->maximized){
 				XTranslateCoordinates(display,
 				    WIDGET_XWINDOW(title),
 				    WIDGET_XWINDOW(title->window),
@@ -193,11 +162,11 @@ struct title *create_title(struct window *window, int x, int y,
 	    InputOutput, x, y, width, height);
 	tp->pixmap = XCreatePixmap(display, WIDGET_XWINDOW(tp),
 	    tp->pixmapwidth = width, tp->pixmapheight = height,
-	    DefaultDepth(display, screen));
+	    tp->widget.depth);
+	tp->xwindow = tp->widget.xwindow;
+	tp->xftdraw = XftDrawCreate(display, tp->pixmap, tp->widget.visual,tp->widget.colormap);
 	gcval.graphics_exposures = False;
-	tp->gc = XCreateGC(display, WIDGET_XWINDOW(tp),
-	    GCGraphicsExposures, &gcval);
-	XSetFont(display, tp->gc, font->fid);
+	tp->gc = XCreateGC(display, tp->pixmap,GCGraphicsExposures, &gcval);
 	tp->window = window;
 	tp->widget.event = titleevent;
 	tp->widget.prepare_repaint = prepare_repaint;
@@ -226,7 +195,13 @@ void resize_title(struct title *tp, int width, int height)
 		    tp->pixmapwidth, tp->pixmapheight);
 		tp->pixmap = XCreatePixmap(display, WIDGET_XWINDOW(tp),
 		    tp->pixmapwidth, tp->pixmapheight,
-		    DefaultDepth(display, screen));
+		    tp->widget.depth);
+		XftDrawDestroy(tp->xftdraw);
+		XFreeGC(display, tp->gc);
+		XGCValues gcval;
+		gcval.graphics_exposures = False;
+		tp->gc =XCreateGC(display, tp->pixmap, GCGraphicsExposures, &gcval);
+		tp->xftdraw = XftDrawCreate(display, tp->pixmap, tp->widget.visual,tp->widget.colormap);
 	}
 
 	resize_widget(&tp->widget, width, height);
@@ -236,6 +211,7 @@ void resize_title(struct title *tp, int width, int height)
 void destroy_title(struct title *title)
 {
 	destroy_widget(&title->widget);
+	XftDrawDestroy(title->xftdraw);
 	XFreePixmap(display, title->pixmap);
 	XFreeGC(display, title->gc);
 	FREE(title);
