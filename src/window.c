@@ -624,7 +624,7 @@ static void repaint(struct widget *widget)
 {
 	//error("window.c repaint start");
 	struct window *win = (struct window *)widget;
-   if(!win->undecorated) {
+   //if(!win->undecorated) {
 	XftColor xftColor = window_family_is_active(win) ?
 	    bgColorTitleActive : bgColorTitleInactive;
 	int w = WIDGET_WIDTH(win);
@@ -634,7 +634,7 @@ static void repaint(struct widget *widget)
 	xftdraw =  XftDrawCreate(display, WIDGET_XWINDOW(win), win->widget.visual,win->widget.colormap);
 	XftDrawRect(xftdraw,&xftColor,0,0, WIDGET_WIDTH(win),WIDGET_HEIGHT(win));
 	XftDrawDestroy(xftdraw);
-   }
+   //}
 }
 
 static void windowevent(struct widget *widget, XEvent *ep)
@@ -990,7 +990,7 @@ struct window *manage_window(Window client, int wmstart)
 	/*
 	 * Initialize struct members
 	 */
-	
+
 	win->name = NULL;
 	win->iconname = NULL;
 	win->title = NULL;
@@ -1022,6 +1022,7 @@ struct window *manage_window(Window client, int wmstart)
 	win->odim.height = attr.height;
 	win->layer = &normallayer;
   	win->undecorated = False;
+	win->dock = False;
 	LIST_INIT(&win->layerlink);
 
   /*
@@ -1034,6 +1035,7 @@ struct window *manage_window(Window client, int wmstart)
     for (unsigned long i = 0; i < n; i++) {
       if (types[i] == NET_WM_WINDOW_TYPE_DOCK) {
         win->undecorated = True;
+	win->dock = True;
       }
     }
     XFree(types);
@@ -1041,20 +1043,20 @@ struct window *manage_window(Window client, int wmstart)
 
   // NOTE: this breaks chrome !!!
   
-  /* unsigned long o = 0; */
-  /* mwmhints *h = getprop(client, MOTIF_WM_HINTS, */
-  /*                       MOTIF_WM_HINTS, 32, &o); */
-  /* if (h != NULL & o != 5) { */
-  /*   XFree(h); */
-  /*   h = NULL; */
-  /* } */
-  /* if (h != NULL) { */
-  /*   if (h->flags & MWM_HINTS_DECORATIONS) { */
-	/* 		if ((h->decorations & MWM_DECOR_TITLE) == 0) */
-	/* 			win->undecorated = True; */
-	/* 	} */
-	/* 	XFree(h); */
-  /* } */
+  unsigned long o = 0;
+  mwmhints *h = getprop(client, MOTIF_WM_HINTS,
+                        MOTIF_WM_HINTS, 32, &o);
+  if (h != NULL & o != 5) {
+     XFree(h);
+     h = NULL;
+  }
+   if (h != NULL) {
+     if (h->flags & MWM_HINTS_DECORATIONS) {
+	 		if ((h->decorations & MWM_DECOR_TITLE) == 0)
+	 			win->undecorated = True;
+     }
+     XFree(h);
+   }
 
 	/*
 	 * Everything initialized. Time to get some work done.
@@ -1104,8 +1106,13 @@ if(!win->undecorated){
 	clerr();
 	XAddToSaveSet(display, client);
 	XSetWindowBorderWidth(display, client, 0);
-	XReparentWindow(display, client, WIDGET_XWINDOW(win),
-	    border_width, border_width + button_size);
+	if(!win->undecorated) {
+	   XReparentWindow(display, client, WIDGET_XWINDOW(win),
+	      border_width, border_width + button_size);
+	} else {
+	   XReparentWindow(display, client, WIDGET_XWINDOW(win),
+	      border_width,border_width);
+	}
 	XLowerWindow(display, client);
 	XSelectInput(display, client, PropertyChangeMask);
 	setgrav(client, NorthWestGravity);
@@ -1168,7 +1175,9 @@ if(!win->undecorated){
 
   if (win->undecorated) {
     put_window_group_below(win);
-    unmanage_window(win, 0);
+    if(win->dock) {
+    	unmanage_window(win, 0);
+    }
   }
 
 	return win;
@@ -1348,9 +1357,15 @@ void moveresize_window(struct window *win, int x, int y, int width, int height)
 
 	if (resize) {
 		clerr();
-		XResizeWindow(display, win->client,
-		    width - 2 * border_width,
-		    height - 2 * border_width - button_size);
+		if(!win->undecorated) {
+		   XResizeWindow(display, win->client,
+		      width - 2 * border_width,
+		      height - 2 * border_width - button_size);
+		} else {
+		   XResizeWindow(display, win->client,
+		      width - 2 * border_width,
+		      height - 2 * border_width);
+		}
 		sterr();
 	}
 
