@@ -79,7 +79,7 @@ static void repaint(struct widget *widget)
 		time_t t = time(NULL);
     		struct tm *tm = localtime(&t);
     		char s[64];
-    		assert(strftime(s, sizeof(s), "%c", tm));
+    		assert(strftime(s, sizeof(s), "%Y-%m-%d %H:%M:%S %A", tm));
 		XftDrawString8(title->xftdraw, &xftFg, xftfont, WIDGET_WIDTH(title) - button_size - stringwidth(s), title_pad+xftfont->ascent, (XftChar8 *) (s), strlen(s));
 	 }
 
@@ -159,7 +159,7 @@ struct title *create_title(struct window *window, int x, int y,
 
 	tp = MALLOC(sizeof (struct title));
 	create_widget(&tp->widget, WIDGET_TITLE, WIDGET_XWINDOW(window),
-	    InputOutput, x, y, width, height);
+	    InputOutput, x, y, width, height, False);
 	tp->pixmap = XCreatePixmap(display, WIDGET_XWINDOW(tp),
 	    tp->pixmapwidth = width, tp->pixmapheight = height,
 	    tp->widget.depth);

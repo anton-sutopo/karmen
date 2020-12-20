@@ -69,8 +69,8 @@ static void repaint(struct widget *widget)
 	/* draw */
 		int x, y;
 
-		x = 0;  
-		y = 0; 
+		x = 0;
+		y = 0;
 		if (bp->depressed) {
 			x++;
 			y++;
@@ -145,7 +145,7 @@ struct button *create_button(struct window *window, int x, int y,
 
 	bp = MALLOC(sizeof (struct button));
 	create_widget(&bp->widget, WIDGET_BUTTON, WIDGET_XWINDOW(window),
-	    InputOutput, x, y, width, height);
+	    InputOutput, x, y, width, height, False);
 
 	bp->pixmap = XCreatePixmap(display, WIDGET_XWINDOW(bp),
 	    WIDGET_WIDTH(bp), WIDGET_HEIGHT(bp),

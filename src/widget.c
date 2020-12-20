@@ -46,7 +46,7 @@ void widget_fini(void)
 }
 
 void create_widget(struct widget *widget, enum widget_type type,
-    Window xparent, unsigned class, int x, int y, int width, int height)
+    Window xparent, unsigned class, int x, int y, int width, int height, int isresize)
 {
 	XSetWindowAttributes attr;
 	XVisualInfo vinfo;
@@ -61,7 +61,7 @@ void create_widget(struct widget *widget, enum widget_type type,
 	attr.override_redirect = True;
 //	widget->xwindow = XCreateSimpleWindow(display, xparent, x, y, width, height, 1,
 //                           BlackPixel(display, screen), WhitePixel(display, screen));
-	if (!XMatchVisualInfo(display, XDefaultScreen(display), 32, TrueColor, &vinfo))
+	if (!XMatchVisualInfo(display, XDefaultScreen(display), 32, TrueColor, &vinfo) || isresize)
         {
 		widget->xwindow = XCreateWindow(display, xparent,
 	    		x, y, width, height, 0,

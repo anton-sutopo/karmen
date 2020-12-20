@@ -287,7 +287,7 @@ struct menu *create_menu(void)
 	mp = MALLOC(sizeof (struct menu));
 
 	create_widget(&mp->widget, WIDGET_MENU, root, InputOutput,
-	    0, 0, 1, 1);
+	    0, 0, 1, 1, False);
 	attr.save_under = True;
 	XChangeWindowAttributes(display, WIDGET_XWINDOW(mp),
 	    CWSaveUnder, &attr);

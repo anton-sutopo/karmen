@@ -70,7 +70,7 @@ struct widget {
 void widget_init(void);
 void widget_fini(void);
 void create_widget(struct widget *, enum widget_type,
-    Window, unsigned, int, int, int, int);
+    Window, unsigned, int, int, int, int, int );
 void resize_widget(struct widget *, int, int);
 void move_widget(struct widget *, int, int);
 void moveresize_widget(struct widget *, int, int, int, int);

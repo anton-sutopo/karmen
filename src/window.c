@@ -68,9 +68,9 @@ static int panelheight = 0;
 static Cursor movecurs;
 
 static void client_to_window_geom(XWindowAttributes *, XSizeHints *,
-    int *x, int *y, int *width, int *height);
+    int *x, int *y, int *width, int *height, Bool undecorated);
 static void window_to_client_geom(struct window *,
-    int *x, int *y, int *width, int *height);
+    int *x, int *y, int *width, int *height, Bool undecorated);
 static void confevent(struct window *, XConfigureRequestEvent *);
 static void windowevent(struct widget *, XEvent *);
 static void setgrav(Window, int);
@@ -413,8 +413,12 @@ void *getprop(Window xwindow, Atom prop, Atom type, int fmt, unsigned long *rcou
 
 
 static void client_to_window_geom(XWindowAttributes *attr, XSizeHints *sz,
-    int *x, int *y, int *width, int *height)
+    int *x, int *y, int *width, int *height, Bool undecorated)
 {
+	int buttonSize = button_size;
+	if(undecorated) {
+	   buttonSize = 0;
+	}
 	int north, south, east, west, stat, center;
 
 	north = south = east = west = stat = center = 0;
@@ -431,7 +435,6 @@ static void client_to_window_geom(XWindowAttributes *attr, XSizeHints *sz,
 		case SouthEastGravity:
 			south = 1;
 			east = 1;
-			break;
 			break;
 		case NorthGravity:
 			north = 1;
@@ -464,13 +467,13 @@ static void client_to_window_geom(XWindowAttributes *attr, XSizeHints *sz,
 		*y = attr->y;
 	else if (south)
 		*y = attr->y + 2 * attr->border_width
-		    - 2 * border_width - button_size;
+		    - 2 * border_width - buttonSize;
 	else if (center)
 		*y = attr->y + attr->border_width
 		    + attr->height / 2
-		    - (attr->height + 2 * border_width + button_size) / 2;
+		    - (attr->height + 2 * border_width + buttonSize) / 2;
 	else if (stat)
-		*y = attr->y + attr->border_width - border_width - button_size;
+		*y = attr->y + attr->border_width - border_width - buttonSize;
 	else
 		*y = attr->y;
 
@@ -489,12 +492,20 @@ static void client_to_window_geom(XWindowAttributes *attr, XSizeHints *sz,
 		*x = attr->x;
 
 	*width = attr->width + 2 * border_width;
-	*height = attr->height + 2 * border_width + button_size;
+	if(undecorated) {
+		*height = attr->height + 2 * border_width + buttonSize;
+	} else {
+		*height = attr->height + 2 * border_width + buttonSize;
+	}
 }
 
 static void window_to_client_geom(struct window *win,
-    int *x, int *y, int *width, int *height)
+    int *x, int *y, int *width, int *height, Bool undecorated)
 {
+	int buttonSize = button_size;
+	if(undecorated) {
+	   buttonSize = 0;
+	}
 	int north, south, east, west, stat, center;
 
 	north = south = east = west = stat = center = 0;
@@ -511,7 +522,6 @@ static void window_to_client_geom(struct window *win,
 		case SouthEastGravity:
 			south = 1;
 			east = 1;
-			break;
 			break;
 		case NorthGravity:
 			north = 1;
@@ -544,13 +554,13 @@ static void window_to_client_geom(struct window *win,
 		*y = WIDGET_Y(win);
 	else if (south)
 		*y = WIDGET_Y(win) - 2*win->cborder
-		    + 2*border_width + button_size;
+		    + 2*border_width + buttonSize;
 	else if (center)
 		*y = WIDGET_Y(win) + WIDGET_HEIGHT(win) / 2
-		    - (WIDGET_HEIGHT(win) - 2*border_width - button_size) / 2
+		    - (WIDGET_HEIGHT(win) - 2*border_width - buttonSize) / 2
 		    - win->cborder;
 	else if (stat)
-		*y = WIDGET_Y(win) - win->cborder + border_width + button_size;
+		*y = WIDGET_Y(win) - win->cborder + border_width + buttonSize;
 	else
 		*y = WIDGET_Y(win);
 
@@ -567,7 +577,11 @@ static void window_to_client_geom(struct window *win,
 		*x = WIDGET_X(win);
 
 	*width = WIDGET_WIDTH(win) - 2*border_width;
-	*height = WIDGET_HEIGHT(win) - 2*border_width - button_size;
+	if(undecorated) {
+		*height = WIDGET_HEIGHT(win) - 2 * border_width - buttonSize;
+	} else {
+		*height = WIDGET_HEIGHT(win) - 2 * border_width - buttonSize;
+	}
 }
 
 void delete_window(struct window *win)
@@ -594,7 +608,7 @@ static void confevent(struct window *win, XConfigureRequestEvent *ep)
 		win->cborder = ep->border_width;
 
 	window_to_client_geom(win, &attr.x, &attr.y,
-	    &attr.width, &attr.height);
+	    &attr.width, &attr.height, win->undecorated);
 	attr.border_width = win->cborder;
 
 	if (ep->value_mask & CWX)
@@ -611,7 +625,7 @@ static void confevent(struct window *win, XConfigureRequestEvent *ep)
 	 */
 
 	client_to_window_geom(&attr, win->wmnormalhints,
-	    &x, &y, &width, &height);
+	    &x, &y, &width, &height, win->undecorated);
 	moveresize_window(win, x, y, width, height);
 }
 
@@ -745,10 +759,14 @@ char *decodetextproperty(XTextProperty *p)
 
 
 
-void low_limit_size(int *width, int *height)
+void low_limit_size(int *width, int *height, int undecorated)
 {
 	*width = MAX(*width, 2 * border_width + 1);
-	*height = MAX(*height, 2 * border_width + button_size + 1);
+	if(undecorated) {
+		*height = MAX(*height, 2 * border_width + 1);
+	} else {
+		*height = MAX(*height, 2 * border_width + button_size + 1);
+	}
 }
 
 static int top_panel_height(Window window)
@@ -805,14 +823,17 @@ void window_calcsize(struct window *win, int width, int height,
 {
 	int decwidth = 2 * border_width;
 	int decheight = 2 * border_width + button_size;
+	if(win->undecorated) {
+		decheight = 2 * border_width;
+	}
 	int havemin = 0;
 	int minwidth = 0;
 	int minheight = 0;
 	int wmminwidth = 0;
 	int wmminheight = 0;
 
-	low_limit_size(&width, &height);
-	low_limit_size(&wmminwidth, &wmminheight);
+	low_limit_size(&width, &height, win->undecorated);
+	low_limit_size(&wmminwidth, &wmminheight, win->undecorated);
 
 	width -= decwidth;
 	height -= decheight;
@@ -889,7 +910,13 @@ void window_calcsize(struct window *win, int width, int height,
         }
 	error("panelheight : %d",panelheight);
 	width += 2 * border_width;
-	height += 2 * border_width + button_size;
+
+	if(!win->undecorated) {
+		height += 2 * border_width + button_size;
+	} else {
+		height += 2 * border_width;
+	}
+
 	height -= panelheight;
 
 	if (rwidth != NULL)
@@ -977,15 +1004,48 @@ struct window *manage_window(Window client, int wmstart)
 	clerr();
 	XGetWMNormalHints(display, client, sz, &dummy);
 	sterr();
-	client_to_window_geom(&attr, sz, &x, &y, &width, &height);
-	low_limit_size(&width, &height);
+	Bool undecorated = False;
+	Bool dock = False;
+  /*
+   * Check if undecorated
+   */
+
+  unsigned long n = 0;
+  Atom *types = getprop(client, NET_WM_WINDOW_TYPE, XA_ATOM, 32, &n);
+  if (types != NULL) {
+    for (unsigned long i = 0; i < n; i++) {
+      if (types[i] == NET_WM_WINDOW_TYPE_DOCK) {
+        undecorated = True;
+	dock = True;
+      }
+    }
+    XFree(types);
+  }
+
+  unsigned long o = 0;
+  mwmhints *h = getprop(client, MOTIF_WM_HINTS,
+                        MOTIF_WM_HINTS, 32, &o);
+  if (h != NULL & o != 5) {
+     XFree(h);
+     h = NULL;
+  }
+   if (h != NULL) {
+     if (h->flags & MWM_HINTS_DECORATIONS) {
+	 		if ((h->decorations & MWM_DECOR_TITLE) == 0)
+	 			undecorated = True;
+     }
+     XFree(h);
+   }
+
+	client_to_window_geom(&attr, sz, &x, &y, &width, &height, undecorated);
+	low_limit_size(&width, &height, undecorated);
 	if (!wmstart && ~sz->flags & USPosition && ~sz->flags & PPosition)
 		smartpos(width, height, &x, &y);
 	XFree(sz);
 
 	win = MALLOC(sizeof (struct window));
 	create_widget(&win->widget, WIDGET_WINDOW,
-	    root, InputOutput, x, y, width, height);
+	    root, InputOutput, x, y, width, height, False);
 
 	/*
 	 * Initialize struct members
@@ -1021,42 +1081,10 @@ struct window *manage_window(Window client, int wmstart)
 	win->odim.width = attr.width;
 	win->odim.height = attr.height;
 	win->layer = &normallayer;
-  	win->undecorated = False;
-	win->dock = False;
+  	win->undecorated = undecorated;
+	win->dock = dock;
 	LIST_INIT(&win->layerlink);
 
-  /*
-   * Check if undecorated
-   */
-
-  unsigned long n = 0;
-  Atom *types = getprop(client, NET_WM_WINDOW_TYPE, XA_ATOM, 32, &n);
-  if (types != NULL) {
-    for (unsigned long i = 0; i < n; i++) {
-      if (types[i] == NET_WM_WINDOW_TYPE_DOCK) {
-        win->undecorated = True;
-	win->dock = True;
-      }
-    }
-    XFree(types);
-  }
-
-  // NOTE: this breaks chrome !!!
-  
-  unsigned long o = 0;
-  mwmhints *h = getprop(client, MOTIF_WM_HINTS,
-                        MOTIF_WM_HINTS, 32, &o);
-  if (h != NULL & o != 5) {
-     XFree(h);
-     h = NULL;
-  }
-   if (h != NULL) {
-     if (h->flags & MWM_HINTS_DECORATIONS) {
-	 		if ((h->decorations & MWM_DECOR_TITLE) == 0)
-	 			win->undecorated = True;
-     }
-     XFree(h);
-   }
 
 	/*
 	 * Everything initialized. Time to get some work done.
@@ -1350,7 +1378,7 @@ void moveresize_window(struct window *win, int x, int y, int width, int height)
 	int move;
 	int resize;
 	//error("x %d; y %d; w %d; h %d; ",x,y,width,height);
-	low_limit_size(&width, &height);
+	low_limit_size(&width, &height, win->undecorated);
 
 	move = x != WIDGET_X(win) || y != WIDGET_Y(win);
 	resize = width != WIDGET_WIDTH(win) || height != WIDGET_HEIGHT(win);
@@ -1451,7 +1479,7 @@ void unmanage_window(struct window *win, int clientquit)
 	LIST_REMOVE(&win->layerlink);
 	nwindows--;
 
-	window_to_client_geom(win, &x, &y, &width, &height);
+	window_to_client_geom(win, &x, &y, &width, &height, win->undecorated);
 	delete_widget_context(win->client);
 
 	clerr();

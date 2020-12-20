@@ -65,19 +65,26 @@ void debug(const char *fmt, ...)
 }
 
 void unmapDraw(XftDraw *xftdraw, XftColor color, int x, int y, int width, int height) {
-	XGlyphInfo ext;
-        XftTextExtentsUtf8(display, xftfont, "<", 1, &ext);
-        int y1 = y + height-(height - ext.height)/2;
-        int x1 = x + (width - ext.width)/2;
-	XftDrawString8(xftdraw, &color,xftfont,x1,y1, (XftChar8 *)"<",1);
+	int y1 = y + (height - 4)/2;
+	int x1 = x + (width - (width - 4))/2;
+	XftDrawRect(xftdraw, &color, x1, y1, width-4, 4);
+	//XGlyphInfo ext;
+        //XftTextExtentsUtf8(display, xftfont, "<", 1, &ext);
+        //int y1 = y + height-(height - ext.height)/2;
+        //int x1 = x + (width - ext.width)/2;
+	//XftDrawString8(xftdraw, &color,xftfont,x1,y1, (XftChar8 *)"<",1);
 }
 
 void closeDraw(XftDraw *xftdraw, XftColor color, int x, int y, int width, int height) {
-	XGlyphInfo ext;
-	XftTextExtentsUtf8(display, xftfont, "#", 1, &ext);
-	int y1 = y + height - (height - ext.height)/2;
-	int x1 = x + (width - ext.width)/2;
-	XftDrawString8(xftdraw, &color,xftfont,x1,y1, (XftChar8 *) "#",1);
+	int y1 = y + (height - (height -6))/2;
+	int x1 = x + (width - (width - 6))/2;
+	XftDrawRect(xftdraw, &color, x1, y1, width-6, height-6);
+
+	//XGlyphInfo ext;
+	//XftTextExtentsUtf8(display, xftfont, "#", 1, &ext);
+	//int y1 = y + height - (height - ext.height)/2;
+	//int x1 = x + (width - ext.width)/2;
+	//XftDrawString8(xftdraw, &color,xftfont,x1,y1, (XftChar8 *) "#",1);
 }
 
 

@@ -60,6 +60,7 @@ XftFont *xftfont;
 int border_width = 1;
 int button_size;
 int title_pad;
+float alpha = 1;
 
 XftColor bgColorTitleActive;
 XftColor bgColorTitleActiveBright;
@@ -109,6 +110,8 @@ static XrmOptionDescRec options[] = {
 	{ "-msbg", ".menu.selection.background", XrmoptionSepArg, NULL },
 	{ "-bw", ".border.width", XrmoptionSepArg, NULL },
 	{ "-xrm", NULL, XrmoptionResArg, NULL },
+	{ "-a",".alpa", XrmoptionSepArg, NULL},
+
 };
 
 #define BLACK		"rgb:00/00/00"
@@ -128,6 +131,7 @@ static char *colorname_menu_fg = BLACK;
 static char *colorname_menu_bg = WHITE;
 static char *colorname_menu_selection_fg = BLACK;
 static char *colorname_menu_selection_bg = WHITE;
+
 
 /* The signals that we care about */
 static const int sigv[] = { SIGHUP, SIGINT, SIGTERM };
@@ -254,7 +258,7 @@ static void waitevent(void)
             			(void) read(pfd[2].fd, &timersElapsed, 8);
             			//error("timers elapsed: %d\n", timersElapsed);
 				if(active !=NULL) {
-					if(active->widget.xwindow != NULL) {
+					if(active->widget.xwindow != 0) {
 					  XEvent exppp;
                                 	  memset(&exppp,0, sizeof(exppp));
                                 	  exppp.type = Expose;
@@ -328,16 +332,18 @@ static void scalecolor(XColor *rp, const XColor *cp, double d)
 
 
 
-static void mkxftcolor(XftColor *color, const char *name) {
+static void mkxftcolor(XftColor *color, const char *name, float alpha) {
+	error("alpha : %f\n", alpha);
 	XColor tc, sc;
 	XAllocNamedColor(display, DefaultColormap(display, screen),
             name, &sc, &tc);
     color->pixel = sc.pixel;
-    color->color.red = tc.red;
-    color->color.green = tc.green;
-    color->color.blue = tc.blue;
-    color->color.alpha = 0xffff;
-
+    color->color.red = (unsigned short)(tc.red * alpha);
+    color->color.green = (unsigned short)(tc.green * alpha);
+    color->color.blue = (unsigned short)(tc.blue * alpha);
+    color->color.alpha = (unsigned short)(0xffff * alpha);
+    color->pixel &= 0x00FFFFFF;
+    color->pixel |= (unsigned char)(0xff * alpha) << 24;
 }
 static void usage(FILE *fp)
 {
@@ -404,6 +410,12 @@ static void loadres(XrmDatabase db)
 
 	if (XrmGetResource(db, "karmen.font", "Karmen.Font", &type, &val))
 		 ftnames[0] = STRDUP((char *)val.addr);
+
+	if (XrmGetResource(db, "karmen.alpa", "Karmen.Alpa", &type, &val)) {
+                 alpha = atof((char *)val.addr);
+		error("loading alpha  \"%f\"",alpha);
+	}
+
 }
 
 static void loadfont(void)
@@ -506,16 +518,16 @@ static void init(int *argcp, char *argv[])
 		button_size++;
 	button_size++;
 
-	mkxftcolor(&bgColorTitleActive,colorname_title_active_bg);
-	mkxftcolor(&bgColorTitleActiveBright, colorname_title_active_bg_bright);
-	mkxftcolor(&fgColorTitleActive,colorname_title_active_fg);
-	mkxftcolor(&bgColorTitleInactive,colorname_title_inactive_bg);
-	mkxftcolor(&fgColorTitleInactive,colorname_title_inactive_fg);
-	mkxftcolor(&bgColorTitleInactiveBright, colorname_title_inactive_bg_bright);
-	mkxftcolor(&bgColorMenu, colorname_menu_bg);
-	mkxftcolor(&fgColorMenu, colorname_menu_fg);
-	mkxftcolor(&bgColorMenuSelection, colorname_menu_selection_bg);
-	mkxftcolor(&fgColorMenuSelection, colorname_menu_selection_fg);
+	mkxftcolor(&bgColorTitleActive,colorname_title_active_bg, alpha);
+	mkxftcolor(&bgColorTitleActiveBright, colorname_title_active_bg_bright, alpha);
+	mkxftcolor(&fgColorTitleActive,colorname_title_active_fg,alpha);
+	mkxftcolor(&bgColorTitleInactive,colorname_title_inactive_bg, alpha);
+	mkxftcolor(&fgColorTitleInactive,colorname_title_inactive_fg,alpha);
+	mkxftcolor(&bgColorTitleInactiveBright, colorname_title_inactive_bg_bright,alpha);
+	mkxftcolor(&bgColorMenu, colorname_menu_bg,alpha);
+	mkxftcolor(&fgColorMenu, colorname_menu_fg,alpha);
+	mkxftcolor(&bgColorMenuSelection, colorname_menu_selection_bg,alpha);
+	mkxftcolor(&fgColorMenuSelection, colorname_menu_selection_fg,alpha);
 	struct itimerspec timerValue;
 	timerfd = timerfd_create(CLOCK_REALTIME, 0);
     	if (timerfd < 0) {

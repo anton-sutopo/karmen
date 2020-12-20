@@ -85,7 +85,7 @@ static struct sizewin *create_sizewin(struct window *win, int xdim, int ydim)
 
 	sizewin = MALLOC(sizeof *sizewin);
 	create_widget(&sizewin->widget, WIDGET_SIZEWIN,
-	    root, InputOutput, 0, 0, 1, 1);
+	    root, InputOutput, 0, 0, 1, 1, True);
 
 	//XSetWindowBackground(display, WIDGET_XWINDOW(sizewin),
 	//    color_title_active_bg.normal);
@@ -114,11 +114,13 @@ static void press(struct resizer *resizer, XButtonEvent *ep)
 
 	if (ep->button == Button1) {
 		set_active_window(win);
-		window_calcsize(win, WIDGET_WIDTH(win), WIDGET_HEIGHT(win),
-		    NULL, NULL, &xdim, &ydim);
-		if (resizer->sizewin != NULL)
-			destroy_sizewin(resizer->sizewin);
-		resizer->sizewin = create_sizewin(win, xdim, ydim);
+                if(!win->maximized) {
+			window_calcsize(win, WIDGET_WIDTH(win), WIDGET_HEIGHT(win),
+		    		NULL, NULL, &xdim, &ydim);
+			if (resizer->sizewin != NULL)
+				destroy_sizewin(resizer->sizewin);
+			resizer->sizewin = create_sizewin(win, xdim, ydim);
+		}
 	} else if (ep->button == Button3) {
 		if (resizer->sizewin != NULL) {
 			destroy_sizewin(resizer->sizewin);
@@ -144,8 +146,8 @@ static void motion(struct resizer *resizer, XMotionEvent *ep)
 	int rwidth, rheight;
 	int xdim, ydim;
 
-	//if (resizer->sizewin == NULL)
-	//	return;
+	if (win->maximized)
+		return;
 
 	switch (resizer->dir) {
 	case NORTHWEST:
@@ -255,7 +257,7 @@ struct resizer *create_resizer(struct window *win, int dir)
 
 	resizer = MALLOC(sizeof (struct resizer));
 	create_widget(&resizer->widget, WIDGET_RESIZER,
-	    WIDGET_XWINDOW(win), InputOnly, 0, 0, 1, 1);
+	    WIDGET_XWINDOW(win), InputOnly, 0, 0, 1, 1, True);
 	resizer->widget.event = resizerevent;
 	XSelectInput(display, WIDGET_XWINDOW(resizer),
 	    ButtonPressMask | ButtonReleaseMask | ButtonMotionMask);
